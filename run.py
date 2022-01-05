@@ -64,23 +64,17 @@ else:
 # running participant level
 if args.analysis_level == "participant":
 
-    # find all T1s and skullstrip them
-    for subject_label in subjects_to_analyze:
-        for T1_file in glob(os.path.join(args.bids_dir, "sub-%s"%subject_label,
-                                         "anat", "*_T1w.nii*")) + glob(os.path.join(args.bids_dir,"sub-%s"%subject_label,"ses-*","anat", "*_T1w.nii*")):
-            out_file = os.path.split(T1_file)[-1].replace("_T1w.", "_brain.")
-            cmd = "bet %s %s"%(T1_file, os.path.join(args.output_dir, out_file))
-            print(cmd)
-            run(cmd)
+    run(f'python run_prfpy.py')
+
+    # # find all T1s and skullstrip them
+    # for subject_label in subjects_to_analyze:
+    #     for T1_file in glob(os.path.join(args.bids_dir, "sub-%s"%subject_label,
+    #                                      "anat", "*_T1w.nii*")) + glob(os.path.join(args.bids_dir,"sub-%s"%subject_label,"ses-*","anat", "*_T1w.nii*")):
+    #         out_file = os.path.split(T1_file)[-1].replace("_T1w.", "_brain.")
+    #         cmd = "bet %s %s"%(T1_file, os.path.join(args.output_dir, out_file))
+    #         print(cmd)
+    #         run(cmd)
 
 # running group level
 elif args.analysis_level == "group":
-    brain_sizes = []
-    for subject_label in subjects_to_analyze:
-        for brain_file in glob(os.path.join(args.output_dir, "sub-%s*.nii*"%subject_label)):
-            data = nibabel.load(brain_file).get_data()
-            # calcualte average mask size in voxels
-            brain_sizes.append((data != 0).sum())
-
-    with open(os.path.join(args.output_dir, "avg_brain_size.txt"), 'w') as fp:
-        fp.write("Average brain size is %g voxels"%numpy.array(brain_sizes).mean())
+    raise NotImplementedError()
