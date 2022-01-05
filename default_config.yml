@@ -1,0 +1,23 @@
+---
+subjectName: '001'
+sessionName: '20200320'
+solver: 'prfpy'
+options:
+  seed: 2764932
+  fixed_hrf: true
+  multiprocess: true
+  screen_distance: 100
+  model:
+    model_type: 'Iso2DGaussian'
+  fitting:
+    eps: 0.1
+    xtol: 1.0e-05
+    ftol: 1.0e-05
+    rsq_threshold: 0.001
+    eccs_lower: 0.01
+    eccs_upper: 1
+    polars_lower: 5
+    polars_upper: 12
+    sizes_lower: 0.01
+    sizes_upper: 1
+    grid_size: 20

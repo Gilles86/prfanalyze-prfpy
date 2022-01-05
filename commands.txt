@@ -1,0 +1,61 @@
+# mkdir /Users/myusername/testFolder
+export basedir=/Users/myusername/testFolder
+cd $basedir
+
+
+# Synth
+
+docker run --rm -it \
+        -v empty:/flywheel/v0/input/config.json \
+        -v $basedir:/flywheel/v0/output \
+        garikoitz/prfsynth
+
+
+mv $basedir/prfsynth-config-defaults.json $basedir/prfsynth_sub-001_sess-20200320.json
+
+
+
+docker run --rm -it \
+        -v $basedir/prfsynth_sub-001_sess-20200320.json:/flywheel/v0/input/config.json \
+        -v $basedir:/flywheel/v0/output \
+           garikoitz/prfsynth
+
+
+
+# Analyze
+
+docker run --rm -it \
+      -v $basedir/empty:/flywheel/v0/input:ro  \
+      -v $basedir:/flywheel/v0/output \
+        garikoitz/prfanalyze-prfpy:latest
+
+
+mv $basedir/prfanalyze-prfpy-default-config.json $basedir/prfanalyze-prfpy-config_sub-001_sess-20200320.json
+
+
+docker run --rm -it \
+      -v $basedir:/flywheel/v0/input \
+      -v $basedir:/flywheel/v0/output \
+      -v $basedir/prfanalyze-prfpy-config_sub-001_sess-20200320.json:/flywheel/v0/input/config.json:ro  \
+         garikoitz/prfanalyze-prfpy:latest
+
+
+
+./PRFmodel/gear/prfanalyze/run_prfanalyze.sh prfpy $basedir prfanalyze-prfpy/default_config.json
+
+
+# Report
+
+docker run --rm -it \
+        -v empty:/flywheel/v0/input/config.json \
+        -v $basedir:/flywheel/v0/output \
+        garikoitz/prfreport
+
+
+mv $basedir/prfreport-configuration-defaults.json $basedir/prfreport-config_sub-001_sess-20200320.json
+
+
+docker run --rm -it \
+        -v $basedir/prfreport-config_sub-001_sess-20200320.json:/flywheel/v0/input/config.json \
+        -v $basedir:/flywheel/v0/output \
+        garikoitz/prfreport

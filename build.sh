@@ -6,9 +6,9 @@
 
 SCRIPTPATH="$( cd "$(dirname "$0")" && pwd -P )"
 
-echo "Building $USERTAG/analyze-$SOLVER:$VERSION"
+echo "Building $USERTAG/prfanalyze-$SOLVER:$VERSION"
 echo "  Path: $SCRIPTPATH"
 echo "------------------------------------------------------------"
 echo ""
 
-docker build "$@" --tag "$USERTAG/analyze-$SOLVER:$VERSION" "$SCRIPTPATH"
+docker build "$@" --tag "$USERTAG/prfanalyze-$SOLVER:$VERSION" "$SCRIPTPATH" --network=host

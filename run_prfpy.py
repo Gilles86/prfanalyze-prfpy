@@ -11,6 +11,7 @@ from prfpy.stimulus import CFStimulus, PRFStimulus2D
 # from bids.reports import BIDSReport
 # from bids import BIDSLayout
 import json
+import ruamel.yaml as yaml
 import pandas as pd
 import nibabel as nib
 import numpy as np
@@ -19,19 +20,22 @@ import sys
 from scipy.stats.stats import pearsonr
 
 # Load and open files
-opts_file = "/tank/mueller/projects/prfanalyze-prfpy/default_config.json"
-bold_file = "/tank/mueller/projects/data/simulated/prfsynth_20_voxels/BIDS/sub-001/ses-20200320/func/sub-001_ses-20200320_task-prf_acq-normal_run-01_bold.nii.gz"
-stim_file = "/tank/mueller/projects/data/simulated/prfsynth_20_voxels/BIDS/stimuli/sub-001_ses-20200320_task-prf_apertures.nii.gz"
-stimjs_file = "/tank/mueller/projects/data/simulated/prfsynth_20_voxels/BIDS/derivatives/prfsynth/sub-001/ses-20200320/sub-001_ses-20200320_task-prf_acq-normal_run-01_bold.json"
-outdir = "/tank/mueller/projects/data/simulated/prfsynth_20_voxels/BIDS/derivatives/prfanalyze-prfpy/sub-001/ses-20200320/"
-# (opts_file, bold_file, stim_file, stimjs_file, outdir) = sys.argv[1:]
+# opts_file = "/tank/mueller/projects/prfanalyze-prfpy/default_config.json"
+# bold_file = "/tank/mueller/projects/data/simulated/prfsynth_2_voxels/BIDS/sub-001/ses-20200320/func/sub-001_ses-20200320_task-prf_acq-normal_run-01_bold.nii.gz"
+# stim_file = "/tank/mueller/projects/data/simulated/prfsynth_2_voxels/BIDS/stimuli/sub-001_ses-20200320_task-prf_apertures.nii.gz"
+# stimjs_file = "/tank/mueller/projects/data/simulated/prfsynth_2_voxels/BIDS/derivatives/prfsynth/sub-001/ses-20200320/sub-001_ses-20200320_task-prf_acq-normal_run-01_bold.json"
+# outdir = "/tank/mueller/projects/data/simulated/prfsynth_2_voxels/BIDS/derivatives/prfanalyze-prfpy/sub-001/ses-20200320/"
+(opts_file, bold_file, stim_file, stimjs_file, outdir) = sys.argv[1:]
 
-with open(opts_file, 'r') as fl:
-    opts = json.load(fl)
-    opts = opts.get('options')
-    if opts is None:
+with open(opts_file, 'r') as stream:
+    try:
+        config = yaml.safe_load(stream)
+    except yaml.YAMLError as exc:
         raise ValueError(
-            'Please make sure the config json has the correct structure and contains an "options" section!')
+            'Please make sure the config ymal has the correct structure and contains an "options" section!')
+
+opts = config.get('options', {})
+
 bold_im = nib.load(bold_file)
 stim_im = nib.load(stim_file)
 with open(stimjs_file, 'r') as fl:
@@ -197,11 +201,34 @@ class FittingConfig:
         else:  # (self.model_type == "Iso2DGaussian")
             self.gf = Iso2DGaussianFitter(
                 data=data, model=self.gg, fit_hrf=self.fit_hrf, n_jobs=self.number_jobs)
-                
+
         return self.gf
 
 
-def fit_voxel(x, info, config):
+def fit_voxels(x, info, config):
+    """
+    fit_voxels
+
+    Fit all present voxels using the given fitting configuration and information for each voxel.
+
+    Parameters
+    ----------
+    x: ndarray
+        Array containing the data for each voxel.
+    info: dict
+        Dictionary containing information for each voxel
+    config: FittingConfig
+        FittingConfig object containing all parameters needed for the fitting
+
+    Returns
+    ----------
+    List
+        List containing indices, the original data, the fitted parameters and the resulting predictions using those parameters.
+
+    Example
+    ----------
+    >>> 
+    """
     config.init_stimulus_params(info)
     config.init_stimulus()
     config.init_model()
@@ -249,7 +276,7 @@ def fit_voxel(x, info, config):
     # Get RESULTS
     # params = gf.gridsearch_params[index, :]
     params = gf.iterative_search_params
-    
+
     # print(f"Fit for vox {index} = {params[-1]}")
     pred = [config.gg.return_prediction(
         *params[i, :-1])[0] for i in range(len(params))]
@@ -262,18 +289,8 @@ def fit_voxel(x, info, config):
 # Initialise the configuration containing the stimulus, the model and parameters for the fitting
 fitting_config = FittingConfig(opts=opts, stim=stim, fixed_hrf=fixed_hrf)
 
-voxs = fit_voxel(x=bold, info=stim_json[0], config=fitting_config)
+voxs = fit_voxels(x=bold, info=stim_json[0], config=fitting_config)
 
-# data_bundle = zip(range(len(bold)), bold, stim_json)
-# if number_jobs == 1:
-#     voxs = [fit_voxel((index, x, stim_json), fitting_config)
-#             for (index, x, stim_json) in data_bundle]
-# else:
-#     print(f"Using {number_jobs} threads for parallel computing.")
-#     tups = list(data_bundle)
-#     with sharedmem.Pool(np=number_jobs) as pool:
-#         voxs = pool.map(fit_voxel, [tups, fitting_config])
-#     voxs = list(sorted(voxs, key=lambda tup: tup[0]))
 
 # Update the results to match the x0/y0, sigma style used by prfanalyze
 all_fields = ('index', 'voxel') + fields + ('fit', 'pred',)
