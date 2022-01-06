@@ -1,15 +1,12 @@
 import six
 import pimms
 import multiprocessing
-# import sharedmem
 from matplotlib import pyplot as plt
 from prfpy.timecourse import *
 from prfpy.rf import *
 from prfpy.fit import CFFitter, CSS_Iso2DGaussianFitter, DoG_Iso2DGaussianFitter, Iso2DGaussianFitter, Norm_Iso2DGaussianFitter
 from prfpy.model import CFGaussianModel, CSS_Iso2DGaussianModel, DoG_Iso2DGaussianModel, Iso2DGaussianModel, Norm_Iso2DGaussianModel
 from prfpy.stimulus import CFStimulus, PRFStimulus2D
-# from bids.reports import BIDSReport
-# from bids import BIDSLayout
 import json
 import ruamel.yaml as yaml
 import pandas as pd
@@ -20,21 +17,16 @@ import sys
 from scipy.stats.stats import pearsonr
 
 # Load and open files
-# opts_file = "/tank/mueller/projects/prfanalyze-prfpy/default_config.json"
-# bold_file = "/tank/mueller/projects/data/simulated/prfsynth_2_voxels/BIDS/sub-001/ses-20200320/func/sub-001_ses-20200320_task-prf_acq-normal_run-01_bold.nii.gz"
-# stim_file = "/tank/mueller/projects/data/simulated/prfsynth_2_voxels/BIDS/stimuli/sub-001_ses-20200320_task-prf_apertures.nii.gz"
-# stimjs_file = "/tank/mueller/projects/data/simulated/prfsynth_2_voxels/BIDS/derivatives/prfsynth/sub-001/ses-20200320/sub-001_ses-20200320_task-prf_acq-normal_run-01_bold.json"
-# outdir = "/tank/mueller/projects/data/simulated/prfsynth_2_voxels/BIDS/derivatives/prfanalyze-prfpy/sub-001/ses-20200320/"
 (opts_file, bold_file, stim_file, stimjs_file, outdir) = sys.argv[1:]
 
 with open(opts_file, 'r') as stream:
     try:
         config = yaml.safe_load(stream)
-    except yaml.YAMLError as exc:
+        opts = config.get('options', {})
+    except yaml.YAMLError:
         raise ValueError(
             'Please make sure the config ymal has the correct structure and contains an "options" section!')
 
-opts = config.get('options', {})
 
 bold_im = nib.load(bold_file)
 stim_im = nib.load(stim_file)
@@ -83,6 +75,9 @@ class FittingConfig:
         else:
             self.number_jobs = 1
 
+        # VERBOSE
+        self.verbose = opts.get('verbose', False)
+
         # STIMULUS
         self.dist = opts.get('screen_distance', 100)
         self.stim = stim
@@ -95,6 +90,7 @@ class FittingConfig:
         # FITTING PARAMS
         # grid search
         fit_opts = opts.get('fitting', {})
+        self.fit_opts = fit_opts
         # TODO increase the default grid size
         self.grid_size = fit_opts.get('grid_size', 10)
         self.eccs_lower = fit_opts.get('eccs_lower',  0.01)
@@ -113,18 +109,31 @@ class FittingConfig:
 
         self._init_search_grid()
 
+    def init_gauss_bounds(self):
+
         # self.max_ecc_size = max(sizes)
+        # Iterative fit
+        gauss_bounds = self.fit_opts.get('gauss_bounds', {})
+        
+        max_ecc_size = self.stimulus.screen_size_degrees
 
         # TODO which bounds to use
-        # gauss_bounds = [
-        #     (-1.5 * max_ecc_size, 1.5 * max_ecc_size),  # mu_x
-        #     (-1.5 * max_ecc_size, 1.5 * max_ecc_size),  # mu_y
-        #     (eps, 1.5 * ss),                           # size
-        #     (0, 1000),                                 # beta
-        #     (0, 1000),                                 # baseline
-        #     # (0, 1000),                               # hrf_1
-        #     # (eps, 3*ss),                             # hrf_2
-        # ]
+        # TODO put the bound configuration also in the json file
+        self.gauss_bounds = [
+            (gauss_bounds['mu_x']['lower_factor'] * max_ecc_size, gauss_bounds['mu_x']['upper_factor'] * max_ecc_size),  # mu_x
+            (gauss_bounds['mu_y']['lower_factor'] * max_ecc_size, gauss_bounds['mu_y']['upper_factor'] * max_ecc_size),  # mu_y
+            # TODO is this correct?  # size
+            (gauss_bounds['size']['lower_factor'] * self.eps, gauss_bounds['size']['upper_factor'] * self.stim_width),
+            (gauss_bounds['beta']['lower'], gauss_bounds['beta']['upper']),                                 # beta
+            (gauss_bounds['baseline']['lower'], gauss_bounds['baseline']['upper']),                                 # baseline
+        ]
+
+        if self.fit_hrf:
+            gauss_bounds.append((
+                (gauss_bounds['hrf_1']['lower'], gauss_bounds['hrf_1']['upper']),                               # hrf_1
+                # hrf_2
+                (gauss_bounds['hrf_2']['lower'] * self.eps, gauss_bounds['hrf_2']['upper'] * self.stimulus.screen_size_degrees),
+            ))
 
     def init_stimulus_params(self, info: dict):
         self.stdat = info['Stimulus']
@@ -231,6 +240,7 @@ def fit_voxels(x, info, config):
     """
     config.init_stimulus_params(info)
     config.init_stimulus()
+    config.init_gauss_bounds()
     config.init_model()
 
     # FITTER
@@ -239,39 +249,26 @@ def fit_voxels(x, info, config):
     # SEARCH GRID
     eccs, polars, sizes = config.get_search_grid()
 
-    # Iterative fit
-    max_ecc_size = config.stimulus.screen_size_degrees
-
-    # TODO which bounds to use
-    # TODO put the bound configuration also in the json file
-    gauss_bounds = [
-        (-1.5 * max_ecc_size, 1.5 * max_ecc_size),  # mu_x
-        (-1.5 * max_ecc_size, 1.5 * max_ecc_size),  # mu_y
-        # TODO is this correct?  # size
-        (config.eps, 1.5 * config.stim_width),
-        (0, 1000),                                 # beta
-        (0, 1000),                                 # baseline
-    ]
-
-    if config.fit_hrf:
-        gauss_bounds.append((
-            (0, 1000),                               # hrf_1
-            # hrf_2
-            (config.eps, 3*config.stimulus.screen_size_degrees),
-        ))
+    if config.verbose:
+        print(f"Starting GRID FIT")
 
     # FIT
     gf.grid_fit(ecc_grid=eccs,
                 polar_grid=polars,
                 size_grid=sizes,
-                verbose=False)
+                verbose=config.verbose)
 
-    print(f"GRID FIT finished successfully")
+    if config.verbose:
+        print(f"GRID FIT finished successfully")
+        print(f"Starting ITERATIVE FIT")
 
     gf.iterative_fit(rsq_threshold=config.rsq_threshold,
-                     bounds=gauss_bounds,
+                     bounds=config.gauss_bounds,
                      constraints=config.constraints,
-                     verbose=False)
+                     verbose=config.verbose)
+
+    if config.verbose:
+        print(f"ITERATIVE FIT finished successfully")
 
     # Get RESULTS
     # params = gf.gridsearch_params[index, :]
@@ -289,6 +286,7 @@ def fit_voxels(x, info, config):
 # Initialise the configuration containing the stimulus, the model and parameters for the fitting
 fitting_config = FittingConfig(opts=opts, stim=stim, fixed_hrf=fixed_hrf)
 
+# Fit the data
 voxs = fit_voxels(x=bold, info=stim_json[0], config=fitting_config)
 
 
@@ -298,11 +296,13 @@ res = {field_name: voxs[index]
        for (index, field_name) in enumerate(all_fields)}
 
 
+# Determine the goodness of fit
 r2s = []
 for i in range(len(bold)):
     r2 = pearsonr(res['pred'][i], bold[i])
-    print(r2)
-    r2s.append(r2)
+    if fitting_config.verbose:
+        print(f"R2 for voxel {i}: {r2}")
+    r2s.append(r2[0])
 
 final_res = {}
 # TODO since this is in degrees of visual angle, does it have to be converted back? If yes, to what?
@@ -328,8 +328,14 @@ im = nib.Nifti1Image(np.reshape(res['pred'], bold_im.shape), bold_im.affine)
 im.to_filename(os.path.join(outdir, 'modelpred.nii.gz'))
 
 # Store R2
-# im = nib.Nifti1Image(r2s, bold_im.affine)
-# im.to_filename(os.path.join(outdir, 'r2.nii.gz'))
+im = nib.Nifti1Image(np.reshape(r2s, (bold_im.shape[0],1,1,1)), bold_im.affine)
+im.to_filename(os.path.join(outdir, 'r2.nii.gz'))
+
+# Store config object
+yamls = yaml.YAML()
+# yamls.register_class(FittingConfig)
+with open(os.path.join(outdir, 'options.yml'), 'w') as options_file:
+    yamls.dump(config, options_file)
 
 
 # That's it!
