@@ -25,32 +25,52 @@ def run(command, env={}):
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('bids_dir', help='The directory with the input dataset '
-                    'formatted according to the BIDS standard.')
-# TODO make the output dir arg optional            
-# parser.add_argument('output_dir', help='The directory where the output files '
-#                     'should be stored. If you are running group level analysis '
-#                     'this folder should be prepopulated with the results of the'
-#                     'participant level analysis.')
-parser.add_argument('config_file', help='The path to the json file containing '
-                    'the configuration for the fitting analysis.')
-# parser.add_argument('analysis_level', help='Level of the analysis that will be performed. '
-#                     'Multiple participant level analyses can be run independently '
-#                     '(in parallel) using the same output_dir.',
-#                     choices=['participant', 'group'])
-parser.add_argument('--participant_label', help='The label(s) of the participant(s) that should be analyzed. The label '
-                    'corresponds to sub-<participant_label> from the BIDS spec '
-                    '(so it does not include "sub-"). If this parameter is not '
-                    'provided all subjects should be analyzed. Multiple '
-                    'participants can be specified with a space separated list.',
-                    nargs="+")
-parser.add_argument('--skip_bids_validator', help='Whether or not to perform BIDS dataset validation',
-                    action='store_true')
-parser.add_argument('-v', '--version', action='version',
-                    version='BIDS-App example version {}'.format(__version__))
+
+parser.add_argument('--get_config', help='Whether or not to copy the default config file.'
+                    'If not specified a path to a config file is assumed to be given as second argument '
+                    'and analysis will be performed.', nargs=1)
+
+args, remainder = parser.parse_known_args()
+
+if (args.get_config):
+    copy_dir = args.get_config[0]
+    run(f"cp -p default_config.yml {os.path.join(copy_dir, 'default_config.yml')}")
+    run(f"chmod +w {os.path.join(copy_dir, 'default_config.yml')}")
+    run(f"ls -la output")
+    print(f"Config file has been copied to:\n{copy_dir}\nRestart without '--get_config' argument to start analysis.")
+    exit(0)
+else:
+    parser = argparse.ArgumentParser()
+    parser.add_argument('bids_dir', help='The directory with the input dataset '
+                        'formatted according to the BIDS standard.')
+    
+    parser.add_argument('config_file', help='The path to the json file containing '
+                        'the configuration for the fitting analysis.')
+    # parser.add_argument('analysis_level', help='Level of the analysis that will be performed. '
+    #                     'Multiple participant level analyses can be run independently '
+    #                     '(in parallel) using the same output_dir.',
+    #                     choices=['participant', 'group'])
+    parser.add_argument('--output_dir', help='The directory where the output files '
+                        'should be stored. If you are running group level analysis '
+                        'this folder should be prepopulated with the results of the'
+                        'participant level analysis.', nargs=1)
+    parser.add_argument('--participant_label', help='The label(s) of the participant(s) that should be analyzed. The label '
+                        'corresponds to sub-<participant_label> from the BIDS spec '
+                        '(so it does not include "sub-"). If this parameter is not '
+                        'provided all subjects should be analyzed. Multiple '
+                        'participants can be specified with a space separated list.',
+                        nargs="+")
+    parser.add_argument('--skip_bids_validator', help='Whether or not to perform BIDS dataset validation',
+                        action='store_true')
+    # parser.add_argument('--debug', help='Whether to start the app in debug mode. Interactive terminal will be started.', action="store_true")
+    parser.add_argument('-v', '--version', action='version',
+                        version='BIDS-App example version {}'.format(__version__))
 
 
-args = parser.parse_args()
+    args = parser.parse_args(remainder)
+
+# if args.debug:
+#     run('exec /bin/bash')
 
 if not args.skip_bids_validator:
     run('bids-validator %s' % args.bids_dir)
@@ -82,7 +102,10 @@ for subject, sessions in subjects_to_analyze.items():
         # TODO the below file should be specified by the used if prfsynth has not been used
         stimjs_file = os.path.join(args.bids_dir, f"derivatives/prfsynth/sub-{subject}/ses-{session}/sub-{subject}_ses-{session}_task-prf_acq-normal_run-01_bold.json")
 
-        output_dir = os.path.join(args.bids_dir, f"derivatives/prfanalyze-prfpy/sub-{subject}/ses-{session}/")
+        if (args.output_dir):
+            output_dir = os.path.join(args.output_dir[0], f"prfanalyze-prfpy/sub-{subject}/ses-{session}/")
+        else:
+            output_dir = os.path.join(args.bids_dir, f"derivatives/prfanalyze-prfpy/sub-{subject}/ses-{session}/")
         os.makedirs(output_dir, exist_ok=True)
 
         # Argument order for run_prfpy.py : (opts_file, bold_file, stim_file, stimjs_file, outdir)

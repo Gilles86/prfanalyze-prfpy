@@ -87,11 +87,17 @@ class FittingConfig:
         self.model_type = model_opts.get("model_type", "Iso2DGaussian")
         self.fit_hrf = not fixed_hrf
 
+        if fixed_hrf:
+            hrf_opts = model_opts.get('hrf', None)
+            if hrf_opts != None:
+                # TODO implement computation of hrf function given parameters
+                pass
+
+
         # FITTING PARAMS
         # grid search
         fit_opts = opts.get('fitting', {})
         self.fit_opts = fit_opts
-        # TODO increase the default grid size
         self.grid_size = fit_opts.get('grid_size', 10)
         self.eccs_lower = fit_opts.get('eccs_lower',  0.01)
         self.eccs_upper = fit_opts.get('eccs_upper',  1.0)
@@ -114,26 +120,29 @@ class FittingConfig:
         # self.max_ecc_size = max(sizes)
         # Iterative fit
         gauss_bounds = self.fit_opts.get('gauss_bounds', {})
-        
+
         max_ecc_size = self.stimulus.screen_size_degrees
 
         # TODO which bounds to use
-        # TODO put the bound configuration also in the json file
         self.gauss_bounds = [
-            (gauss_bounds['mu_x']['lower_factor'] * max_ecc_size, gauss_bounds['mu_x']['upper_factor'] * max_ecc_size),  # mu_x
-            (gauss_bounds['mu_y']['lower_factor'] * max_ecc_size, gauss_bounds['mu_y']['upper_factor'] * max_ecc_size),  # mu_y
-            # TODO is this correct?  # size
-            (gauss_bounds['size']['lower_factor'] * self.eps, gauss_bounds['size']['upper_factor'] * self.stim_width),
-            (gauss_bounds['beta']['lower'], gauss_bounds['beta']['upper']),                                 # beta
-            (gauss_bounds['baseline']['lower'], gauss_bounds['baseline']['upper']),                                 # baseline
+            (gauss_bounds['mu_x']['lower_factor'] * max_ecc_size,
+             gauss_bounds['mu_x']['upper_factor'] * max_ecc_size),  # mu_x
+            (gauss_bounds['mu_y']['lower_factor'] * max_ecc_size,
+             gauss_bounds['mu_y']['upper_factor'] * max_ecc_size),  # mu_y
+            (gauss_bounds['size']['lower_factor'] * self.eps,
+             gauss_bounds['size']['upper_factor'] * self.stim_width),
+            (gauss_bounds['beta']['lower'], gauss_bounds['beta']
+             ['upper']),                                 # beta
+            (gauss_bounds['baseline']['lower'], gauss_bounds['baseline']
+             ['upper']),                                 # baseline
         ]
 
         if self.fit_hrf:
-            gauss_bounds.append((
-                (gauss_bounds['hrf_1']['lower'], gauss_bounds['hrf_1']['upper']),                               # hrf_1
-                # hrf_2
-                (gauss_bounds['hrf_2']['lower'] * self.eps, gauss_bounds['hrf_2']['upper'] * self.stimulus.screen_size_degrees),
-            ))
+            self.gauss_bounds.append(
+                (gauss_bounds['hrf_1']['lower'], gauss_bounds['hrf_1']['upper']))                               # hrf_1
+            # hrf_2
+            self.gauss_bounds.append((gauss_bounds['hrf_2']['lower_factor'] * self.eps, gauss_bounds['hrf_2']['upper_factor'] * self.stimulus.screen_size_degrees),
+                                     )
 
     def init_stimulus_params(self, info: dict):
         self.stdat = info['Stimulus']
@@ -174,20 +183,16 @@ class FittingConfig:
 
     def init_model(self):
         if (self.model_type == "CFGaussian"):
-            # TODO implement CFGaussian
             self.gg = CFGaussianModel(stimulus=self.stimulus)
         elif (self.model_type == "CSS_Iso2DGaussian"):
-            # TODO implement CSS_Iso2DGaussian
-            self.gg = CSS_Iso2DGaussianModel(stimulus=self.stimulus)
+            self.gg = CSS_Iso2DGaussianModel(stimulus=self.stimulus, hrf=self.hrf)
         elif (self.model_type == "DoG_Iso2DGaussian"):
-            # TODO implement DoG_Iso2DGaussian
-            self.gg = DoG_Iso2DGaussianModel(stimulus=self.stimulus)
+            self.gg = DoG_Iso2DGaussianModel(stimulus=self.stimulus, hrf=self.hrf)
         elif (self.model_type == "Norm_Iso2DGaussian"):
-            # TODO implement Norm_Iso2DGaussian
-            self.gg = Norm_Iso2DGaussianModel(stimulus=self.stimulus)
+            self.gg = Norm_Iso2DGaussianModel(stimulus=self.stimulus, hrf=self.hrf)
 
         else:  # (self.model_type == "Iso2DGaussian")
-            self.gg = Iso2DGaussianModel(stimulus=self.stimulus)
+            self.gg = Iso2DGaussianModel(stimulus=self.stimulus, hrf=self.hrf)
 
     def get_fitter(self, data: np.ndarray):
         if (self.model_type == "CFGaussian"):
@@ -328,7 +333,8 @@ im = nib.Nifti1Image(np.reshape(res['pred'], bold_im.shape), bold_im.affine)
 im.to_filename(os.path.join(outdir, 'modelpred.nii.gz'))
 
 # Store R2
-im = nib.Nifti1Image(np.reshape(r2s, (bold_im.shape[0],1,1,1)), bold_im.affine)
+im = nib.Nifti1Image(np.reshape(
+    r2s, (bold_im.shape[0], 1, 1, 1)), bold_im.affine)
 im.to_filename(os.path.join(outdir, 'r2.nii.gz'))
 
 # Store config object

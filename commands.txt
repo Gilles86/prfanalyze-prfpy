@@ -16,7 +16,7 @@ mv $basedir/prfsynth-config-defaults.json $basedir/prfsynth_sub-001_sess-2020032
 
 
 docker run --rm -it \
-        -v $basedir/prfsynth_sub-001_sess-20200320.json:/flywheel/v0/input/config.json \
+        -v $basedir/prfsynth_sub-002_sess-20200320.json:/flywheel/v0/input/config.json \
         -v $basedir:/flywheel/v0/output \
            garikoitz/prfsynth
 
@@ -27,17 +27,17 @@ docker run --rm -it \
 docker run --rm -it \
       -v $basedir/empty:/flywheel/v0/input:ro  \
       -v $basedir:/flywheel/v0/output \
-        garikoitz/prfanalyze-prfpy:latest
+        garikoitz/prfanalyze-vista:latest
 
 
-mv $basedir/prfanalyze-prfpy-default-config.json $basedir/prfanalyze-prfpy-config_sub-001_sess-20200320.json
+mv $basedir/prfanalyze-vista-default-config.json $basedir/prfanalyze-vista-config_sub-001_sess-20200320.json
 
 
-docker run --rm -it \
+docker run --rm -it --network=host \
       -v $basedir:/flywheel/v0/input \
       -v $basedir:/flywheel/v0/output \
-      -v $basedir/prfanalyze-prfpy-config_sub-001_sess-20200320.json:/flywheel/v0/input/config.json:ro  \
-         garikoitz/prfanalyze-prfpy:latest
+      -v $basedir/prfanalyze-vista-config_sub-001_sess-20200320.json:/flywheel/v0/input/config.json:ro  \
+         garikoitz/prfanalyze-vista:latest
 
 
 

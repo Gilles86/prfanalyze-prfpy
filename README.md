@@ -27,10 +27,6 @@ This App has the following command line arguments:
 		positional arguments:
 		  bids_dir              The directory with the input dataset formatted
 		                        according to the BIDS standard.
-<!-- output_dir            The directory where the output files should be stored.
-					If you are running a group level analysis, this folder
-					should be prepopulated with the results of
-					the participant level analysis. -->
 		  config_file			The path to a yaml file containing all necessary information to perform the 							  prf-fitting
 
 		optional arguments:
@@ -43,6 +39,11 @@ This App has the following command line arguments:
 		                        all subjects will be analyzed. Multiple participants
 		                        can be specified with a space separated list.
 
+<!-- output_dir            The directory where the output files should be stored.
+					If you are running a group level analysis, this folder
+					should be prepopulated with the results of
+					the participant level analysis. -->
+					
 To run it in (for one participant):
 
 	docker run -i --rm \

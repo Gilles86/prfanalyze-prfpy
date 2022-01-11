@@ -59,6 +59,8 @@ COPY run.py /run.py
 COPY run_prfpy.py /run_prfpy.py
 COPY default_config.yml /default_config.yml
 
+RUN chmod 777 /default_config.yml
+
 COPY solve.sh /solve.sh
 RUN chmod 755 /solve.sh
 
