@@ -5,4 +5,3 @@ docker run -i --rm --network=host \
  niklasmueller/prfanalyze-prfpy \
  /bids_dataset \
  /config.yml \
- --output_dir /output

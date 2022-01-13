@@ -20,7 +20,7 @@ options:
     polars_upper: 12
     sizes_lower: 0.001
     sizes_upper: 10
-    grid_size: 100
+    grid_size: 20
     gauss_bounds:
       mu_x:
         lower_factor: -1.2

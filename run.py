@@ -36,7 +36,6 @@ if (args.get_config):
     copy_dir = args.get_config[0]
     run(f"cp -p default_config.yml {os.path.join(copy_dir, 'default_config.yml')}")
     run(f"chmod +w {os.path.join(copy_dir, 'default_config.yml')}")
-    run(f"ls -la output")
     print(f"Config file has been copied to:\n{copy_dir}\nRestart without '--get_config' argument to start analysis.")
     exit(0)
 else:

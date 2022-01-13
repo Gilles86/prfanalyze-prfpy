@@ -4,7 +4,7 @@ import multiprocessing
 from matplotlib import pyplot as plt
 from prfpy.timecourse import *
 from prfpy.rf import *
-from prfpy.fit import CFFitter, CSS_Iso2DGaussianFitter, DoG_Iso2DGaussianFitter, Iso2DGaussianFitter, Norm_Iso2DGaussianFitter
+from prfpy.fit import CFFitter, CSS_Iso2DGaussianFitter, DoG_Iso2DGaussianFitter, Fitter, Iso2DGaussianFitter, Norm_Iso2DGaussianFitter
 from prfpy.model import CFGaussianModel, CSS_Iso2DGaussianModel, DoG_Iso2DGaussianModel, Iso2DGaussianModel, Norm_Iso2DGaussianModel
 from prfpy.stimulus import CFStimulus, PRFStimulus2D
 import json
@@ -25,7 +25,7 @@ with open(opts_file, 'r') as stream:
         opts = config.get('options', {})
     except yaml.YAMLError:
         raise ValueError(
-            'Please make sure the config ymal has the correct structure and contains an "options" section!')
+            'Please make sure the config yaml has the correct structure and contains an "options" section!')
 
 
 bold_im = nib.load(bold_file)
@@ -59,13 +59,46 @@ else:
 
 
 class FittingConfig:
-    """
-    FittingConfig
+    """Class to configure everything needed to create the model and run the fitting
 
-    Class to configure everything needed to create the model and run the fitting
+
+
+        Example
+        ----------
+        >>> config.init_stimulus_params(info)
+        >>> config.init_stimulus()
+        >>> config.init_gauss_bounds()
+        >>> config.init_model()
+        >>> fitter = config.get_fitter(data=x)
+        >>> grid_fit_params, iterative_fit_params = config.get_fitting_params()
+        >>> fitter.grid_fit(**grid_fit_params)
+        >>> fitter.iterative_fit(**iterative_fit_params)
+        >>> params = fitter.iterative_search_params
+        >>> pred = [config.model.return_prediction(
+            *params[i, :-1])[0] for i in range(len(params))]
     """
 
-    def __init__(self, opts: dict, fixed_hrf: bool, stim):
+    def __init__(self, opts: dict, fixed_hrf: bool, stim: np.ndarray):
+        """__init__
+
+            Initialize the configuration object for the fitting.
+
+            Parameters
+            ----------
+            opts: dict
+                Dictionary containing the options section from the configuration yaml file.
+            fixed_hrf: bool
+                Whether or not the HRF should be assumed fixed. If false, HRF fitting will be applied. 
+                If true and the hrf section in the opts dict is specified, 
+                the specified HRF will be used instead of the default one, implemented in prfpy.
+            stim: ndarray
+                Array containing the stimulus data. Should be loaded from a nifti file, and should have 3 dimensions with shape (n, m, t) 
+                where n and m correspond to horizontal and vertical screen size, respectively and t corresponds to the number of timesteps.
+
+            Example
+            ----------
+            >>> fitting_config = FittingConfig(opts=opts, fixed_hrf=True, stim=stimulus) 
+        """
         # MULTIPROCESSING
         opt_multiprocessing = opts.get('multiprocess', False)
         if opt_multiprocessing == 'auto' or opt_multiprocessing:
@@ -89,10 +122,13 @@ class FittingConfig:
 
         if fixed_hrf:
             hrf_opts = model_opts.get('hrf', None)
-            if hrf_opts != None:
-                # TODO implement computation of hrf function given parameters
-                pass
-
+            # TODO implement computation of hrf function given parameters
+            if hrf_opts == 'vista_twogammas':
+                self.hrf = self._get_default_vista_twogammas_hrf()
+            else:
+                self.hrf = None
+        else:
+            self.hrf = None
 
         # FITTING PARAMS
         # grid search
@@ -115,9 +151,72 @@ class FittingConfig:
 
         self._init_search_grid()
 
-    def init_gauss_bounds(self):
+    def _get_default_vista_twogammas_hrf(self, params=[5.4, 5.2, 10.8, 7.35, 0.35], t=list(range(0, 20))):
+        """ _get_default_vista_twogammas_hrf
 
-        # self.max_ecc_size = max(sizes)
+            Return the computed HRF timecourse given by the vistasoft implementation. 
+            DO NOT USE, this is not a verified method and does not ensure the validity of the computed HRF.
+
+            Parameters
+            ----------
+            params: list, optional
+                List of parameter in the following order: [peak1, fwhm1, peak2, fwhm2, dip], by default [5.4, 5.2, 10.8, 7.35, 0.35]
+            t: list, optional
+                List of timesteps., by default list(range(0,20))
+
+            Returns
+            ----------
+            list
+                Computed HRF using two gamma functions for the given parameters and timesteps
+
+            Example
+            ----------
+            >>> self._get_default_vista_twogammas_hrf() 
+        """
+        #  params
+        peak1 = params[0]
+        fwhm1 = params[1]
+        peak2 = params[2]
+        fwhm2 = params[3]
+        dip = params[4]
+
+        #  sanity check
+        if(peak1 == 0 or fwhm1 == 0):
+            # self.hrf = None
+            return None
+        else:
+            #  Taylor:
+            alpha1 = np.power(peak1, 2)/np.power(fwhm1, 2)*8*np.log(2)
+            beta1 = np.power(fwhm1, 2)/peak1/8/np.log(2)
+            gamma1 = np.multiply(np.power(np.divide(t, peak1), alpha1), np.exp(
+                np.divide(-1 * (np.subtract(t, peak1)), beta1)))
+
+            if peak2 > 0 and fwhm2 > 0:
+                alpha2 = np.power(peak2, 2)/np.power(fwhm2, 2)*8*np.log(2)
+                beta2 = np.power(fwhm2, 2)/peak2/8/np.log(2)
+                gamma2 = np.multiply(np.power(np.divide(t, peak2), alpha2), np.exp(
+                    np.divide(-1 * (np.subtract(t, peak2)), beta2)))
+            else:
+                gamma2 = min(abs(np.subtract(t, peak2))) == abs(
+                    np.subtract(t, peak2))
+
+            h = np.subtract(gamma1, dip*gamma2)
+            hrf = h.reshape((1, h.shape[0]))
+            return hrf
+
+    def init_gauss_bounds(self):
+        """init_gauss_bounds
+
+            Initialize the gauss_bounds needed for the iterative fit for the Iso2DGaussian model (or possibly others).
+            Stimulus needs to be initialize first by calling init_stimulus().
+
+            Example
+            ----------
+            >>> fitting_config.init_gauss_bounds() 
+        """
+        # check whether stimulus has been initilized
+        assert self.stimulus != None
+
         # Iterative fit
         gauss_bounds = self.fit_opts.get('gauss_bounds', {})
 
@@ -145,6 +244,19 @@ class FittingConfig:
                                      )
 
     def init_stimulus_params(self, info: dict):
+        """init_stimulus_params
+
+            Initialize the parameters needed to create the stimulus object. 
+
+            Parameters
+            ----------
+            info: dict
+                Dictionary providing the data for the stimulus parameters.
+
+            Example
+            ----------
+            >>> fitting_config.init_stimulus_params(info) 
+        """
         self.stdat = info['Stimulus']
         if pimms.is_list(self.stdat):
             self.stdat = self.stdat[0]
@@ -154,6 +266,16 @@ class FittingConfig:
         self.tr = info['TR']
 
     def _init_search_grid(self):
+        """_init_search_grid
+
+            Initialize the search grid given the lower and upper bounds for eccentricity, 
+            polar angle and size and a number of points in the grid grid_size.
+            Will directly be called at the end of the construction.
+
+            Example
+            ----------
+            >>> self._init_search_grid()
+        """
         # TODO Tomas: this is dependent on the stimulus but not on the different voxels right?
         self.eccs = np.linspace(
             self.eccs_lower, self.eccs_upper, self.grid_size, dtype='float32')
@@ -163,9 +285,34 @@ class FittingConfig:
             self.sizes_lower, self.sizes_upper, self.grid_size, dtype='float32')
 
     def get_search_grid(self):
+        """get_search_grid
+
+            Return the computed search grid. If this has not been initialize, call _init_search_grid first.
+
+            Returns
+            ----------
+            tuple
+                Search grid for eccentricity, polar angle and size.
+
+            Example
+            ----------
+            >>> eccs, polars, sizes = fitting_config.get_search_grid() 
+        """
+        if self.eccs is None or self.polars is None or self.sizes is None:
+            self._init_search_grid()
+
         return self.eccs, self.polars, self.sizes
 
     def init_stimulus(self):
+        """init_stimulus
+
+            Initialize the stimulus objects depending on the used model. Default is the PRFStimulus2D object.
+            Before calling this init_stimulus_params() has to be called to ensure that necessary information is present.
+
+            Example
+            ----------
+            >>> fitting_config.init_stimulus()
+        """
         if (self.model_type == "CFGaussian"):
             # CFStimulus(data=self.stim)
             pass
@@ -182,66 +329,142 @@ class FittingConfig:
             #  task_names=task_names)
 
     def init_model(self):
+        """init_model
+
+            Initialize the model object given the specific model type.
+            Possible models are CFGaussianModel, CSS_Iso2DGaussianModel, DoG_Iso2DGaussianModel, Norm_Iso2DGaussianModel, Iso2DGaussianModel.
+            Model will be store in self.model
+
+            Example
+            ----------
+            >>> fitting_config.init_model()
+        """
+
+        # check whether stimulus has been initialized
+        assert self.stimulus != None
+
         if (self.model_type == "CFGaussian"):
-            self.gg = CFGaussianModel(stimulus=self.stimulus)
+            self.model = CFGaussianModel(stimulus=self.stimulus)
         elif (self.model_type == "CSS_Iso2DGaussian"):
-            self.gg = CSS_Iso2DGaussianModel(stimulus=self.stimulus, hrf=self.hrf)
+            self.model = CSS_Iso2DGaussianModel(
+                stimulus=self.stimulus, hrf=self.hrf)
         elif (self.model_type == "DoG_Iso2DGaussian"):
-            self.gg = DoG_Iso2DGaussianModel(stimulus=self.stimulus, hrf=self.hrf)
+            self.model = DoG_Iso2DGaussianModel(
+                stimulus=self.stimulus, hrf=self.hrf)
         elif (self.model_type == "Norm_Iso2DGaussian"):
-            self.gg = Norm_Iso2DGaussianModel(stimulus=self.stimulus, hrf=self.hrf)
+            self.model = Norm_Iso2DGaussianModel(
+                stimulus=self.stimulus, hrf=self.hrf)
 
         else:  # (self.model_type == "Iso2DGaussian")
-            self.gg = Iso2DGaussianModel(stimulus=self.stimulus, hrf=self.hrf)
+            self.model = Iso2DGaussianModel(
+                stimulus=self.stimulus, hrf=self.hrf)
 
-    def get_fitter(self, data: np.ndarray):
+    def get_fitter(self, data: np.ndarray) -> "Fitter":
+        """get_fitter
+
+            Initialize and return the fitter with the given data depending on the model type.
+            Will perform parallel fitting depending on self.number_jobs.
+            Will perform HRF fitting depending on self.fit_hrf.
+            Possible fitter classes are:
+            CFFitter
+            CSS_Iso2DGaussianFitter
+            DoG_Iso2DGaussianFitter
+            Norm_Iso2DGaussianFitter
+            Iso2DGaussianFitter
+
+            Parameters
+            ----------
+            data: np.ndarray
+                Array containing the data that should be used for the fitting.
+
+            Returns
+            ----------
+            Fitter
+                Fitting object specific to the model type and data.
+
+            Example
+            ----------
+            >>> 
+        """
         if (self.model_type == "CFGaussian"):
             # TODO implement CFGaussian
-            self.gf = CFFitter(data=data, model=self.gg,
-                               fit_hrf=self.fit_hrf, n_jobs=self.number_jobs)
+            self.fitter = CFFitter(data=data, model=self.model,
+                                   fit_hrf=self.fit_hrf, n_jobs=self.number_jobs)
         elif (self.model_type == "CSS_Iso2DGaussian"):
             # TODO implement CSS_Iso2DGaussian
-            self.gf = CSS_Iso2DGaussianFitter(
-                data=data, model=self.gg, fit_hrf=self.fit_hrf, n_jobs=self.number_jobs)
+            self.fitter = CSS_Iso2DGaussianFitter(
+                data=data, model=self.model, fit_hrf=self.fit_hrf, n_jobs=self.number_jobs)
         elif (self.model_type == "DoG_Iso2DGaussian"):
             # TODO implement DoG_Iso2DGaussian
-            self.gf = DoG_Iso2DGaussianFitter(
-                data=data, model=self.gg, fit_hrf=self.fit_hrf, n_jobs=self.number_jobs)
+            self.fitter = DoG_Iso2DGaussianFitter(
+                data=data, model=self.model, fit_hrf=self.fit_hrf, n_jobs=self.number_jobs)
         elif (self.model_type == "Norm_Iso2DGaussian"):
             # TODO implement Norm_Iso2DGaussian
-            self.gf = Norm_Iso2DGaussianFitter(
-                data=data, model=self.gg, fit_hrf=self.fit_hrf, n_jobs=self.number_jobs)
-
+            self.fitter = Norm_Iso2DGaussianFitter(
+                data=data, model=self.model, fit_hrf=self.fit_hrf, n_jobs=self.number_jobs)
         else:  # (self.model_type == "Iso2DGaussian")
-            self.gf = Iso2DGaussianFitter(
-                data=data, model=self.gg, fit_hrf=self.fit_hrf, n_jobs=self.number_jobs)
+            self.fitter = Iso2DGaussianFitter(
+                data=data, model=self.model, fit_hrf=self.fit_hrf, n_jobs=self.number_jobs)
+        return self.fitter
 
-        return self.gf
+    def get_fitting_params(self) -> "tuple[dict, dict]":
+        """Evaluate the configuration and return two dictionaries containing the needed parameters to call grid_fit and iterative_fit.
+
+            Returns
+            ----------
+            dict, dict
+                Dictionaries containing parameters for grid_fit and iterative_fit respectively for the configured model type.
+
+            Example
+            ----------
+            >>> grid_fit_params, iterative_fit_params = get_fitting_params()
+        """
+        if self.model_type == 'Iso2DGaussian':
+            eccs, polars, sizes = self.get_search_grid()
+
+            grid_fit_params = {"ecc_grid": eccs,
+                               "polar_grid": polars,
+                               "size_grid": sizes,
+                               "verbose": self.verbose}
+
+            iterative_fit_params = {"rsq_threshold": self.rsq_threshold,
+                                    "bounds": self.gauss_bounds,
+                                    "constraints": self.constraints,
+                                    "verbose": self.verbose}
+        # elif self.model_type == 'Norm_Iso2DGaussian':
+        #     grid_fit_params = {"surround_amplitude_grid": "",
+        #                        "surround_size_grid": "",
+        #                        "neural_baseline_grid": "",
+        #                        "surround_baseline_grid": "", 
+        #                        "verbose": self.verbose}
+        else:
+            grid_fit_params = None
+            iterative_fit_params = None
+            print(f"Only Iso2DGaussion model and fitter are so far implemented.")
+
+        return grid_fit_params, iterative_fit_params
 
 
-def fit_voxels(x, info, config):
-    """
-    fit_voxels
+def fit_voxels(x, info: dict, config: FittingConfig):
+    """Fit all present voxels using the given fitting configuration and information for each voxel.
 
-    Fit all present voxels using the given fitting configuration and information for each voxel.
+        Parameters
+        ----------
+        x: ndarray
+            Array containing the data for each voxel.
+        info: dict
+            Dictionary containing information for each voxel
+        config: FittingConfig
+            FittingConfig object containing all parameters needed for the fitting
 
-    Parameters
-    ----------
-    x: ndarray
-        Array containing the data for each voxel.
-    info: dict
-        Dictionary containing information for each voxel
-    config: FittingConfig
-        FittingConfig object containing all parameters needed for the fitting
+        Returns
+        ----------
+        List
+            List containing indices, the original data, the fitted parameters and the resulting predictions using those parameters.
 
-    Returns
-    ----------
-    List
-        List containing indices, the original data, the fitted parameters and the resulting predictions using those parameters.
-
-    Example
-    ----------
-    >>> 
+        Example
+        ----------
+        >>> voxels = fit_voxels(x=bold, info=info, config=fitting_config)
     """
     config.init_stimulus_params(info)
     config.init_stimulus()
@@ -249,42 +472,38 @@ def fit_voxels(x, info, config):
     config.init_model()
 
     # FITTER
-    gf = config.get_fitter(data=x)
+    fitter = config.get_fitter(data=x)
 
     # SEARCH GRID
-    eccs, polars, sizes = config.get_search_grid()
+    grid_fit_params, iterative_fit_params = config.get_fitting_params()
+
+    assert grid_fit_params is not None and iterative_fit_params is not None
 
     if config.verbose:
         print(f"Starting GRID FIT")
 
     # FIT
-    gf.grid_fit(ecc_grid=eccs,
-                polar_grid=polars,
-                size_grid=sizes,
-                verbose=config.verbose)
+    # pass items from dictionary as if they were method arguments
+    fitter.grid_fit(**grid_fit_params)
 
     if config.verbose:
         print(f"GRID FIT finished successfully")
         print(f"Starting ITERATIVE FIT")
 
-    gf.iterative_fit(rsq_threshold=config.rsq_threshold,
-                     bounds=config.gauss_bounds,
-                     constraints=config.constraints,
-                     verbose=config.verbose)
+    fitter.iterative_fit(**iterative_fit_params)
 
     if config.verbose:
         print(f"ITERATIVE FIT finished successfully")
 
     # Get RESULTS
-    # params = gf.gridsearch_params[index, :]
-    params = gf.iterative_search_params
+    params = fitter.iterative_search_params
 
-    # print(f"Fit for vox {index} = {params[-1]}")
-    pred = [config.gg.return_prediction(
+    pred = [config.model.return_prediction(
         *params[i, :-1])[0] for i in range(len(params))]
 
     # this should return an aray with
     # index, voxel_data, estimates for all the fields, prediction
+    # TODO refactor this
     return (list(range(len(x))), x) + tuple(params.T) + (pred,)
 
 

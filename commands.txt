@@ -16,7 +16,7 @@ mv $basedir/prfsynth-config-defaults.json $basedir/prfsynth_sub-001_sess-2020032
 
 
 docker run --rm -it \
-        -v $basedir/prfsynth_sub-002_sess-20200320.json:/flywheel/v0/input/config.json \
+        -v $basedir/prfsynth_sub-001_sess-20200320.json:/flywheel/v0/input/config.json \
         -v $basedir:/flywheel/v0/output \
            garikoitz/prfsynth
 
