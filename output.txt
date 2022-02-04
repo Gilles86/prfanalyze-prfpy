@@ -1,0 +1,27 @@
+-------------- Activated conda environment ---------------
+bids-validator@1.8.9
+bids-specification@disable
+	1: [WARN] Not all subjects/sessions/runs have the same scanning parameters. (code: 39 - INCONSISTENT_PARAMETERS)
+		./sub-003/ses-20200320/func/sub-003_ses-20200320_task-prf_acq-normal_run-01_bold.nii.gz
+
+	Please visit https://neurostars.org/search?q=INCONSISTENT_PARAMETERS for existing conversations about this issue.
+
+        Summary:                Available Tasks:        Available Modalities: 
+        17 Files, 1.72MB        prf                     MRI                   
+        3 - Subjects                                                          
+        1 - Session                                                           
+
+
+	If you have any questions, please post on https://neurostars.org/tags/bids.
+
+Subjects to analyze:
+{'003': ['20200320'], '001': ['20200320'], '002': ['20200320']}
+/opt/conda/envs/prfpy_analysis/lib/python3.9/site-packages/nilearn/datasets/__init__.py:93: FutureWarning: Fetchers from the nilearn.datasets module will be updated in version 0.9 to return python strings instead of bytes and Pandas dataframes instead of Numpy arrays.
+  warn("Fetchers from the nilearn.datasets module will be "
+/opt/conda/envs/prfpy_analysis/lib/python3.9/site-packages/nilearn/glm/__init__.py:55: FutureWarning: The nilearn.glm module is experimental. It may change in any future release of Nilearn.
+  warn('The nilearn.glm module is experimental. '
+Traceback (most recent call last):
+  File "//run_prfpy.py", line 10, in <module>
+    from prfpy.utils import HRF
+ImportError: cannot import name 'HRF' from 'prfpy.utils' (/opt/conda/envs/prfpy_analysis/lib/python3.9/site-packages/prfpy-0.1.dev0-py3.9.egg/prfpy/utils.py)
+

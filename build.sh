@@ -1,6 +1,6 @@
 #! /bin/bash
 
-[ -z "$USERTAG" ] && USERTAG=niklasmueller
+[ -z "$USERTAG" ] && USERTAG=niklasmueller01
 [ -z "$SOLVER"  ] && SOLVER=prfpy
 [ -z "$VERSION" ] && VERSION=latest
 

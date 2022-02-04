@@ -59,6 +59,8 @@ else:
                         'provided all subjects should be analyzed. Multiple '
                         'participants can be specified with a space separated list.',
                         nargs="+")
+    parser.add_argument('--data_origin', help='The name of the corresponding synthesizer. '
+                        'Can either be prfsynth (default) or prfpy.', nargs=1, default='prfsynth')
     parser.add_argument('--skip_bids_validator', help='Whether or not to perform BIDS dataset validation',
                         action='store_true')
     # parser.add_argument('--debug', help='Whether to start the app in debug mode. Interactive terminal will be started.', action="store_true")
@@ -93,11 +95,19 @@ for subject in subjects_to_analyze.keys():
 
 print(f"Subjects to analyze:\n{subjects_to_analyze}")
 
+if args.data_origin == 'prfsynth':
+    get_stim_js_file = True
+else:
+    get_stim_js_file = False
+
 # Run analysis
 for subject, sessions in subjects_to_analyze.items():
     for session in sessions:
         bold_file = os.path.join(args.bids_dir, f"sub-{subject}/ses-{session}/func/sub-{subject}_ses-{session}_task-prf_acq-normal_run-01_bold.nii.gz")
-        stim_file = os.path.join(args.bids_dir, f"stimuli/sub-{subject}_ses-{session}_task-prf_apertures.nii.gz")
+        if get_stim_js_file:
+            stim_file = os.path.join(args.bids_dir, f"stimuli/sub-{subject}_ses-{session}_task-prf_apertures.nii.gz")
+        else:
+            stim_file = ''
         # TODO the below file should be specified by the used if prfsynth has not been used
         stimjs_file = os.path.join(args.bids_dir, f"derivatives/prfsynth/sub-{subject}/ses-{session}/sub-{subject}_ses-{session}_task-prf_acq-normal_run-01_bold.json")
 

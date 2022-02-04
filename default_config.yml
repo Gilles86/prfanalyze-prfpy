@@ -1,45 +1,49 @@
 ---
-solver: 'prfpy'
-options:
-  seed: 2764932
-  fixed_hrf: false
-  multiprocess: true
-  verbose: true
-  screen_distance: 100
-  model:
-    model_type: 'Iso2DGaussian'
-    hrf:
-  fitting:
-    eps: 0.1
-    xtol: 1.0e-05
-    ftol: 1.0e-05
-    rsq_threshold: 0.001
-    eccs_lower: 0.001
-    eccs_upper: 10
-    polars_lower: 2
-    polars_upper: 12
-    sizes_lower: 0.001
-    sizes_upper: 10
-    grid_size: 20
-    gauss_bounds:
-      mu_x:
-        lower_factor: -1.2
-        upper_factor: 1.2
-      mu_y:
-        lower_factor: -1.2
-        upper_factor: 1.2
-      size:
-        lower_factor: 1.0
-        upper_factor: 1.5
-      beta:
-        lower: -10000
-        upper: 50000
-      baseline:
-        lower: -10000
-        upper: 50000
-      hrf_1:
-        lower: -10000
-        upper: 50000
-      hrf_2:
-        lower_factor: 1.0
-        upper_factor: 3.0
+seed: 2764932
+fixed_hrf: false
+multiprocess: 10
+verbose: true
+screen_distance: 57
+model:
+  model_type: 'Iso2DGaussian'
+  hrf:
+fitting:
+  eps: 0.1
+  xtol: 1.0e-05
+  ftol: 1.0e-05
+  rsq_threshold: 0.1
+  eccs_lower: 0.1
+  eccs_upper: 1
+  polars_lower: 0
+  polars_upper: 2
+  sizes_lower: 0.25
+  sizes_upper: 1
+  grid_size: 50
+  gauss_bounds:
+    mu_x:
+      lower_factor: -10
+      upper_factor: 10
+    mu_y:
+      lower_factor: -10
+      upper_factor: 10
+    size:
+      lower_factor: 1.0
+      upper_factor: 10.0
+    beta:
+      lower: -10000
+      upper: 50000
+    baseline:
+      lower: -10000
+      upper: 50000
+    hrf_1:
+      lower: -10000
+      upper: 50000
+    hrf_2:
+      lower_factor: 1.0
+      upper_factor: 3.0
+synth:
+  origin: 'prfsynth' # prfpy
+  tr: 1
+  stimulus_width_degrees: 2
+  width: 20
+  height: 20

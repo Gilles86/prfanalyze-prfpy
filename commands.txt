@@ -24,7 +24,7 @@ docker run --rm -it \
 
 # Analyze
 
-docker run --rm -it \
+docker run --rm -it --network=host \
       -v $basedir/empty:/flywheel/v0/input:ro  \
       -v $basedir:/flywheel/v0/output \
         garikoitz/prfanalyze-vista:latest
@@ -56,6 +56,6 @@ mv $basedir/prfreport-configuration-defaults.json $basedir/prfreport-config_sub-
 
 
 docker run --rm -it \
-        -v $basedir/prfreport-config_sub-001_sess-20200320.json:/flywheel/v0/input/config.json \
+        -v $basedir/prfreport-config_sub-002_sess-20200320.json:/flywheel/v0/input/config.json \
         -v $basedir:/flywheel/v0/output \
         garikoitz/prfreport
