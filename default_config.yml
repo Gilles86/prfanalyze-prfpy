@@ -4,7 +4,7 @@ fixed_hrf: false
 multiprocess: 10
 verbose: true
 screen_distance: 57
-useparallel: false
+useparallel: true
 model:
   model_type: 'Iso2DGaussian'
   hrf:
