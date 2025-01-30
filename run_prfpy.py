@@ -105,15 +105,15 @@ class FittingConfig:
                            'baseline', 'hrf_1', 'hrf_2')
 
         # remove this block when migrating to the new HRF model
-        if not hasattr(prfpy.utils, 'HRF'):
-            if fixed_hrf:
-                # TODO implement computation of hrf function given parameters
-                if self.hrf_opts == 'vista_twogammas':
-                    self.hrf = self._get_default_vista_twogammas_hrf()
-                else:
-                    self.hrf = None
-            else:
-                self.hrf = None
+        # if not hasattr(prfpy.utils, 'HRF'):
+        #     if fixed_hrf:
+        #         # TODO implement computation of hrf function given parameters
+        #         if self.hrf_opts == 'vista_twogammas':
+        #             self.hrf = self._get_default_vista_twogammas_hrf()
+        #         else:
+        #             self.hrf = None
+        #     else:
+        #         self.hrf = None
 
         # FITTING PARAMS
         # grid search
@@ -240,19 +240,19 @@ class FittingConfig:
             print(f"Using gauss bounds:\n{self.gauss_bounds}\n")
 
     def init_hrf(self):
-        assert self.tr
+        # assert self.tr
 
-        if hasattr(prfpy.utils, 'HRF'):
-            self.hrf = HRF()
+        # if hasattr(prfpy.utils, 'HRF'):
+        #     self.hrf = HRF()
 
-            if not self.fit_hrf:
-                # TODO implement computation of hrf function given parameters
-                if self.hrf_opts == 'vista_twogammas':
-                    self.hrf.values = self._get_default_vista_twogammas_hrf()
-                else:
-                    self.hrf.create_spm_hrf(TR=self.tr, force=True)
+        if not self.fit_hrf:
+            # TODO implement computation of hrf function given parameters
+            if self.hrf_opts == 'vista_twogammas':
+                self.hrf.values = self._get_default_vista_twogammas_hrf()
             else:
                 self.hrf.create_spm_hrf(TR=self.tr, force=True)
+        else:
+            self.hrf.create_spm_hrf(TR=self.tr, force=True)
 
     def init_stimulus_params(self, info):
         """init_stimulus_params
@@ -621,7 +621,8 @@ if __name__ == "__main__":
 
     with open(opts_file, 'r') as stream:
         try:
-            opts = yaml.safe_load(stream)
+            yamls = yaml.YAML(typ='safe', pure=True)
+            opts = yamls.load(stream)
         except yaml.YAMLError:
             raise ValueError(
                 'Please make sure the config yaml has the correct structure!')

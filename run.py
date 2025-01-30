@@ -7,6 +7,7 @@ from glob import glob
 __version__ = open(os.path.join(os.path.dirname(os.path.realpath(__file__)),
                                 'version')).read()
 
+print('yooooo')
 
 def run(command, env={}):
     merged_env = os.environ
@@ -76,7 +77,6 @@ else:
 if not args.skip_bids_validator:
     run('bids-validator %s' % args.bids_dir)
 
-subjects_to_analyze = []
 # only for a subset of subjects
 if args.participant_label:
     subjects_to_analyze = args.participant_label
@@ -87,11 +87,11 @@ else:
         "-")[-1]: [] for subject_dir in subject_dirs}
 
 
+sessions_to_analyze = {}
 # Get all sessions (not specifiable)
-for subject in subjects_to_analyze.keys():
+for subject in subjects_to_analyze:
     session_dirs = glob(os.path.join(args.bids_dir, f"sub-{subject}/ses-*"))
-    sessions_to_analyze = [session_dir.split("-")[-1] for session_dir in session_dirs]
-    subjects_to_analyze[subject] = sessions_to_analyze
+    sessions_to_analyze[subject] = [session_dir.split("-")[-1] for session_dir in session_dirs]
 
 print(f"Subjects to analyze:\n{subjects_to_analyze}")
 
@@ -101,7 +101,7 @@ else:
     get_stim_js_file = False
 
 # Run analysis
-for subject, sessions in subjects_to_analyze.items():
+for subject, sessions in sessions_to_analyze.items():
     for session in sessions:
         bold_file = os.path.join(args.bids_dir, f"sub-{subject}/ses-{session}/func/sub-{subject}_ses-{session}_task-prf_acq-normal_run-01_bold.nii.gz")
         if get_stim_js_file:
@@ -120,5 +120,5 @@ for subject, sessions in subjects_to_analyze.items():
         # Argument order for run_prfpy.py : (opts_file, bold_file, stim_file, stimjs_file, outdir)
         filenames_args = " ".join([args.config_file, bold_file, stim_file, stimjs_file, output_dir])
         
-        run(f'python3 run_prfpy.py {filenames_args}')
+        run(f'python run_prfpy.py {filenames_args}')
 

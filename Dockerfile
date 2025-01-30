@@ -23,7 +23,7 @@ RUN curl -L -o ~/miniforge.sh 'https://github.com/conda-forge/miniforge/releases
 RUN . /opt/conda/etc/profile.d/conda.sh && conda create -n prfpy_analysis python=3.9 -y \
     && conda run -n prfpy_analysis pip install --upgrade nilearn nibabel==2.0 h5py wget bids sharedmem pimms \
     setuptools wheel six ruamel.yaml \
-    && git clone https://github.com/VU-Cog-Sci/prfpy.git \
+    && git clone https://github.com/Gilles86/prfpy.git \
     && conda run -n prfpy_analysis python -m pip install ./prfpy \
     && git clone https://github.com/gallantlab/pycortex.git \
     && conda run -n prfpy_analysis python -m pip install ./pycortex \
@@ -43,7 +43,11 @@ RUN chmod 777 /default_config.yml
 COPY solve.sh /solve.sh
 RUN chmod 755 /solve.sh
 
+
 COPY version /version
 
 # Set entrypoint
 ENTRYPOINT ["/solve.sh"]
+
+RUN conda run -n prfpy_analysis python -m pip install scikit-learn
+RUN conda run -n prfpy_analysis python -m pip install --upgrade --no-cache-dir nilearn
