@@ -1,64 +1,43 @@
+# Use Ubuntu Focal as base
 FROM ubuntu:focal-20211006
 
-# Install Node.js, Yarn and required dependencies
-RUN apt-get update  \
-    && apt-get install -y curl gnupg build-essential \
+# Install Node.js, Yarn, and required dependencies
+RUN apt-get update && apt-get install -y \
+    curl gnupg build-essential git \
     && curl --silent --location https://deb.nodesource.com/setup_16.x | bash - \
     && curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | apt-key add - \
     && echo "deb https://dl.yarnpkg.com/debian/ stable main" | tee /etc/apt/sources.list.d/yarn.list \
-    && apt-get remove -y --purge cmdtest \
-    && apt-get update \
-    && apt-get install -y nodejs yarn \
-    && apt-get install -y git \
-    # remove useless files from the current layer
-    && rm -rf /var/lib/apt/lists/* \
-    && rm -rf /var/lib/apt/lists.d/* \
-    && apt-get autoremove \
-    && apt-get clean \
-    && apt-get autoclean  \
-    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+    && apt-get update && apt-get install -y nodejs yarn \
+    && npm install -g bids-validator \
+    && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-RUN npm install -g bids-validator
+# Install Conda (Miniforge recommended over deprecated Miniconda2)
+RUN curl -L -o ~/miniforge.sh 'https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh' \
+    && /bin/bash ~/miniforge.sh -b -p /opt/conda \
+    && rm ~/miniforge.sh \
+    && ln -s /opt/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh \
+    && echo ". /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc \
+    && echo "conda activate base" >> ~/.bashrc
 
-# Install conda
-RUN curl -L -o ~/miniconda.sh 'https://repo.anaconda.com/miniconda/Miniconda2-4.5.11-Linux-x86_64.sh'
-RUN /bin/bash ~/miniconda.sh -b -p /opt/conda \
- && rm ~/miniconda.sh \
- && ln -s /opt/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh \
- && echo ". /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc \
- && echo "conda activate base" >> ~/.bashrc
+# Install dependencies for prfpy analysis
+RUN . /opt/conda/etc/profile.d/conda.sh && conda create -n prfpy_analysis python=3.9 -y \
+    && conda run -n prfpy_analysis pip install --upgrade nilearn nibabel==2.0 h5py wget bids sharedmem pimms \
+    setuptools wheel six ruamel.yaml \
+    && git clone https://github.com/VU-Cog-Sci/prfpy.git \
+    && conda run -n prfpy_analysis python -m pip install ./prfpy \
+    && git clone https://github.com/gallantlab/pycortex.git \
+    && conda run -n prfpy_analysis python -m pip install ./pycortex \
+    && mkdir -p /root/.config/pycortex/ \
+    && touch /root/.config/pycortex/options.cfg
 
-# Install dependecies for prfpy analysis
-RUN . /opt/conda/etc/profile.d/conda.sh && \
-    conda create -n prfpy_analysis --channel intel intelpython3_full && \
-    conda activate prfpy_analysis && \
-    pip install --upgrade nilearn && \
-    pip install nibabel==2.0 && \
-    pip install --upgrade h5py && \
-    pip install --upgrade wget && \
-    pip install --upgrade bids && \
-    pip install --upgrade sharedmem && \
-    pip install --upgrade pimms && \
-    pip install -U setuptools wheel && \
-    pip install --upgrade -U six && \
-    pip install --upgrade -U ruamel.yaml && \
-    git clone https://github.com/VU-Cog-Sci/prfpy.git && \
-    cd prfpy && \
-    python setup.py install && \
-    cd .. && \
-    git clone https://github.com/gallantlab/pycortex.git && \
-    cd pycortex && \
-    python setup.py install  && \
-    cd .. && \
-    mkdir -p /root/.config/pycortex/ && \
-    touch /root/.config/pycortex/options.cfg 
-
+# Set environment variables to ensure conda works in container
+ENV PATH="/opt/conda/bin:$PATH"
+ENV CONDA_DEFAULT_ENV=prfpy_analysis
+ENV CONDA_PREFIX="/opt/conda/envs/prfpy_analysis"
 ENV PYTHONPATH=""
 
-COPY run.py /run.py
-COPY run_prfpy.py /run_prfpy.py
-COPY default_config.yml /default_config.yml
-
+# Copy necessary scripts
+COPY run.py run_prfpy.py default_config.yml / 
 RUN chmod 777 /default_config.yml
 
 COPY solve.sh /solve.sh
@@ -66,4 +45,5 @@ RUN chmod 755 /solve.sh
 
 COPY version /version
 
+# Set entrypoint
 ENTRYPOINT ["/solve.sh"]
